@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX SENSE | 智能肌肉感知系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        'apex-black': '#050505',
+                        'apex-dark': '#0a0a0a',
+                        'apex-gray': '#111111',
+                        'apex-silver': '#a0a0a0',
+                        'apex-accent': '#00d4ff',
+                        'apex-purple': '#7b2cbf',
+                        'apex-heat-low': '#3b82f6',
+                        'apex-heat-mid': '#eab308',
+                        'apex-heat-high': '#ef4444',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #050505;
+            color: #ffffff;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .font-display { font-family: 'Space Grotesk', sans-serif; }
+
+        .text-gradient {
+            background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .heat-gradient {
+            background: linear-gradient(90deg, #3b82f6 0%, #eab308 50%, #ef4444 100%);
+        }
+
+        .glass-panel {
+            background: rgba(17, 17, 17, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel-light {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sensor-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7); }
+            50% { opacity: 0.8; transform: scale(1.1); box-shadow: 0 0 0 10px rgba(0, 212, 255, 0); }
+        }
+
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        .tech-grid {
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        .material-layer {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .material-layer:hover {
+            transform: translateX(10px) scale(1.02);
+        }
+
+        .scan-line {
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { transform: translateY(0); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(100px); opacity: 0; }
+        }
+
+        .floating {
+            animation: floating 6s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .material-stack {
+            perspective: 1000px;
+        }
+
+        .layer-card {
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+
+        .layer-card:hover {
+            transform: rotateX(5deg) translateZ(20px);
+        }
+
+        .btn-glow:hover {
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .spec-row:hover {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .qr-modal {
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .qr-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Three.js Canvas */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Ensure sections have transparent backgrounds to show particles */
+        section {
+            position: relative;
+            background: transparent;
+        }
+
+        .bg-apex-dark {
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(5px);
+        }
+    </style>
+<base target="_blank">
+</head>
+<body class="antialiased">
+    <!-- Three.js Particle Background -->
+    <canvas id="particle-canvas"></canvas>
+
+    <div class="content-wrapper">
+        <!-- Navigation -->
+        <nav class="fixed top-0 w-full z-50 mix-blend-difference transition-all duration-300" id="navbar">
+            <div class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+                <div class="font-display text-2xl font-bold tracking-tighter">
+                    APEX<span class="text-apex-accent">.</span>SENSE
+                </div>
+                <div class="hidden md:flex space-x-8 text-sm font-medium tracking-wide">
+                    <a href="#technology" class="hover:text-apex-accent transition-colors">TECHNOLOGY</a>
+                    <a href="#materials" class="hover:text-apex-accent transition-colors">MATERIALS</a>
+                    <a href="#models" class="hover:text-apex-accent transition-colors">3D MODEL</a>
+                    <a href="#sensors" class="hover:text-apex-accent transition-colors">SENSORS</a>
+                    <a href="#specs" class="hover:text-apex-accent transition-colors">SPECS</a>
+                    <a href="#experience" class="hover:text-apex-accent transition-colors">APP</a>
+                </div>
+                <button onclick="openQRModal()" class="px-6 py-2 bg-apex-accent text-black font-medium hover:bg-white transition-all duration-300 text-sm tracking-widest btn-glow rounded-sm">
+                    体验 DEMO
+                </button>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section class="relative min-h-screen flex items-center justify-center overflow-hidden">
+            <div class="absolute inset-0 tech-grid opacity-20"></div>
+            <div class="absolute inset-0 bg-gradient-to-b from-transparent via-apex-black/50 to-apex-black"></div>
+
+            <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-apex-accent/10 rounded-full blur-3xl floating"></div>
+            <div class="absolute bottom-1/4 right-1/4 w-64 h-64 bg-apex-purple/10 rounded-full blur-3xl floating" style="animation-delay: 2s;"></div>
+
+            <div class="relative z-10 max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center pt-20">
+                <div class="space-y-8 scroll-reveal">
+                    <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
+                        <span class="w-2 h-2 rounded-full bg-apex-accent animate-pulse"></span>
+                        <span class="text-xs tracking-widest text-apex-silver">DUAL-MODE SENSING TECHNOLOGY</span>
+                    </div>
+
+                    <h1 class="font-display text-6xl md:text-8xl font-bold leading-none tracking-tighter">
+                        MUSCLE<br>
+                        <span class="gradient-text">INTELLIGENCE</span>
+                    </h1>
+
+                    <p class="text-lg text-gray-400 max-w-md leading-relaxed">
+                        全域肌肉受力感知系统。实时动作纠正，科学训练反馈。16-24个柔性传感点，精准捕捉每一次发力。
+                    </p>
+
+                    <div class="flex items-center space-x-6">
+                        <button onclick="openQRModal()" class="group relative px-8 py-4 bg-white text-black font-medium tracking-wider overflow-hidden rounded-sm hover:scale-105 transition-transform">
+                            <span class="relative z-10 group-hover:text-white transition-colors duration-300">立即体验</span>
+                            <div class="absolute inset-0 bg-apex-accent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
+                        </button>
+                        <a href="#materials" class="flex items-center space-x-2 text-sm tracking-widest hover:text-apex-accent transition-colors group">
+                            <span>了解技术</span>
+                            <svg class="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="relative scroll-reveal">
+                    <div class="relative aspect-[3/4] bg-gradient-to-br from-gray-900/80 to-black/80 rounded-2xl overflow-hidden border border-white/10 shadow-2xl backdrop-blur-sm">
+                        <div class="absolute inset-0 bg-noise"></div>
+                        <svg class="absolute inset-0 w-full h-full p-8" viewBox="0 0 200 300" fill="none">
+                            <defs>
+                                <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:0.3" />
+                                    <stop offset="100%" style="stop-color:#7b2cbf;stop-opacity:0.3" />
+                                </linearGradient>
+                            </defs>
+                            <path d="M100 20 C120 20 130 40 130 60 C130 80 140 90 140 110 L140 200 C140 220 130 240 120 280 M100 20 C80 20 70 40 70 60 C70 80 60 90 60 110 L60 200 C60 220 70 240 80 280" 
+                                  stroke="url(#bodyGradient)" stroke-width="2" fill="none"/>
+                            <circle cx="85" cy="80" r="4" fill="#00d4ff" class="sensor-dot" filter="drop-shadow(0 0 6px #00d4ff)"/>
+                            <circle cx="115" cy="80" r="4" fill="#00d4ff" class="sensor-dot" style="animation-delay: 0.2s" filter="drop-shadow(0 0 6px #00d4ff)"/>
+                            <circle cx="100" cy="120" r="4" fill="#00d4ff" class="sensor-dot" style="animation-delay: 0.4s" filter="drop-shadow(0 0 6px #00d4ff)"/>
+                            <circle cx="85" cy="150" r="4" fill="#eab308" class="sensor-dot" style="animation-delay: 0.6s" filter="drop-shadow(0 0 6px #eab308)"/>
+                            <circle cx="115" cy="150" r="4" fill="#00d4ff" class="sensor-dot" style="animation-delay: 0.8s" filter="drop-shadow(0 0 6px #00d4ff)"/>
+                            <circle cx="100" cy="180" r="4" fill="#ef4444" class="sensor-dot" style="animation-delay: 1s" filter="drop-shadow(0 0 6px #ef4444)"/>
+                            <circle cx="90" cy="220" r="4" fill="#00d4ff" class="sensor-dot" style="animation-delay: 1.2s" filter="drop-shadow(0 0 6px #00d4ff)"/>
+                            <circle cx="110" cy="220" r="4" fill="#00d4ff" class="sensor-dot" style="animation-delay: 1.4s" filter="drop-shadow(0 0 6px #00d4ff)"/>
+                            <path d="M85 80 Q100 100 115 80 M100 120 L100 180 M85 150 Q100 165 115 150" 
+                                  stroke="rgba(0,212,255,0.4)" stroke-width="1" fill="none" stroke-dasharray="4,4"/>
+                        </svg>
+
+                        <div class="absolute bottom-8 left-8 right-8">
+                            <div class="glass-panel rounded-lg p-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs tracking-widest text-gray-400">MUSCLE ACTIVATION</span>
+                                    <span class="text-xs text-apex-accent font-bold">LIVE</span>
+                                </div>
+                                <div class="h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                                    <div class="h-full heat-gradient w-3/4 animate-pulse"></div>
+                                </div>
+                                <div class="flex justify-between mt-2 text-xs text-gray-500 font-mono">
+                                    <span>LOW</span>
+                                    <span>OPTIMAL</span>
+                                    <span>PEAK</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="absolute -right-4 top-1/4 glass-panel rounded-lg p-4 transform translate-x-4 floating" style="animation-delay: 1s;">
+                        <div class="text-2xl font-display font-bold text-apex-accent">24</div>
+                        <div class="text-xs text-gray-400 tracking-wider">SENSORS</div>
+                    </div>
+                    <div class="absolute -left-4 bottom-1/3 glass-panel rounded-lg p-4 transform -translate-x-4 floating" style="animation-delay: 2s;">
+                        <div class="text-2xl font-display font-bold text-white">8h</div>
+                        <div class="text-xs text-gray-400 tracking-wider">BATTERY</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technology Section -->
+        <section id="technology" class="py-32 relative">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="grid md:grid-cols-2 gap-16 items-center">
+                    <div class="scroll-reveal space-y-6">
+                        <h2 class="font-display text-4xl md:text-5xl font-bold leading-tight">
+                            DUAL-MODE<br>
+                            <span class="text-gray-500">SENSING</span>
+                        </h2>
+                        <p class="text-gray-400 leading-relaxed text-lg">
+                            采用柔性肌电传感（sEMG）+ 柔性形变压力传感双模检测机制。肌电信号判断肌肉激活程度，压力形变捕捉肢体状态变化，两套数据相互校准，有效降低单一传感器检测误差。
+                        </p>
+
+                        <div class="space-y-4 pt-6">
+                            <div class="flex items-start space-x-4 group cursor-pointer">
+                                <div class="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center group-hover:border-apex-accent group-hover:bg-apex-accent/10 transition-all">
+                                    <svg class="w-5 h-5 text-apex-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-1 text-lg">sEMG 肌电传感</h4>
+                                    <p class="text-sm text-gray-500">实时捕捉肌肉纤维电信号，精准识别激活程度</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-4 group cursor-pointer">
+                                <div class="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center group-hover:border-apex-accent group-hover:bg-apex-accent/10 transition-all">
+                                    <svg class="w-5 h-5 text-apex-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-1 text-lg">形变压力传感</h4>
+                                    <p class="text-sm text-gray-500">监测肌肉膨胀与肢体形变，验证动作轨迹</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative scroll-reveal">
+                        <div class="aspect-square rounded-2xl bg-gradient-to-br from-gray-900/80 to-black/80 border border-white/10 p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
+                            <div class="absolute inset-0 tech-grid opacity-30"></div>
+                            <div class="relative h-full flex flex-col justify-center space-y-6">
+                                <div class="space-y-2">
+                                    <div class="flex justify-between text-xs tracking-widest text-gray-400 font-mono">
+                                        <span>PECTORALIS MAJOR</span>
+                                        <span class="text-apex-heat-high font-bold">87%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-apex-heat-low to-apex-heat-high w-[87%] transition-all duration-1000"></div>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="flex justify-between text-xs tracking-widest text-gray-400 font-mono">
+                                        <span>DELTOID</span>
+                                        <span class="text-apex-heat-mid font-bold">45%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-apex-heat-low to-apex-heat-mid w-[45%] transition-all duration-1000 delay-100"></div>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="flex justify-between text-xs tracking-widest text-gray-400 font-mono">
+                                        <span>TRAPEZIUS</span>
+                                        <span class="text-apex-accent font-bold">12%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-apex-heat-low w-[12%] transition-all duration-1000 delay-200"></div>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="flex justify-between text-xs tracking-widest text-gray-400 font-mono">
+                                        <span>TRICEPS</span>
+                                        <span class="text-apex-heat-mid font-bold">62%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-apex-heat-low to-apex-heat-mid w-[62%] transition-all duration-1000 delay-300"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Materials Section -->
+        <section id="materials" class="py-32 bg-apex-dark relative overflow-hidden">
+            <div class="absolute inset-0 tech-grid opacity-10"></div>
+            <div class="max-w-7xl mx-auto px-6 relative z-10">
+                <div class="text-center mb-20 scroll-reveal">
+                    <h2 class="font-display text-4xl md:text-6xl font-bold mb-6">MATERIAL<span class="text-apex-accent">.</span>STACK</h2>
+                    <p class="text-gray-400 max-w-2xl mx-auto text-lg">五层复合结构，科技与舒适的完美平衡</p>
+                </div>
+
+                <div class="material-stack max-w-4xl mx-auto space-y-4 scroll-reveal">
+                    <div class="layer-card material-layer glass-panel-light rounded-xl p-6 flex items-center gap-6 cursor-pointer group">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-2xl font-bold font-display shrink-0">01</div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-xl font-bold group-hover:text-apex-accent transition-colors">外层面料层</h3>
+                                <span class="text-xs text-gray-500 font-mono bg-white/5 px-3 py-1 rounded-full">0.6-0.8mm</span>
+                            </div>
+                            <p class="text-gray-400 text-sm mb-2">高弹锦纶82% + 氨纶18% 复合面料，防泼水处理 + 透气网眼</p>
+                            <div class="flex gap-2 text-xs text-gray-500">
+                                <span class="px-2 py-1 bg-white/5 rounded">压缩贴合</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">四向弹力</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">耐磨抗撕裂</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="layer-card material-layer glass-panel-light rounded-xl p-6 flex items-center gap-6 cursor-pointer group">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center text-2xl font-bold font-display shrink-0 text-white">02</div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-xl font-bold group-hover:text-apex-accent transition-colors">银纤维导电网络层</h3>
+                                <span class="text-xs text-gray-500 font-mono bg-white/5 px-3 py-1 rounded-full">银含量15-20%</span>
+                            </div>
+                            <p class="text-gray-400 text-sm mb-2">银镀锦纶纱线编织成网格状导电回路，替代纯银纤维，成本降低40%</p>
+                            <div class="flex gap-2 text-xs text-gray-500">
+                                <span class="px-2 py-1 bg-white/5 rounded">电阻&lt;10Ω/m</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">柔软无感</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">抗氧化</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="layer-card material-layer glass-panel-light rounded-xl p-6 flex items-center gap-6 cursor-pointer group">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-purple-900 to-purple-600 flex items-center justify-center text-2xl font-bold font-display shrink-0 text-white">03</div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-xl font-bold group-hover:text-apex-accent transition-colors">传感元件层</h3>
+                                <span class="text-xs text-gray-500 font-mono bg-white/5 px-3 py-1 rounded-full">Ecoflex封装</span>
+                            </div>
+                            <p class="text-gray-400 text-sm mb-2">石墨烯压力传感带 + sEMG柔性电极阵列，双模态传感精度提升35%</p>
+                            <div class="flex gap-2 text-xs text-gray-500">
+                                <span class="px-2 py-1 bg-white/5 rounded">8-24通道</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">24bit ADC</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">防水封装</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="layer-card material-layer glass-panel-light rounded-xl p-6 flex items-center gap-6 cursor-pointer group">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-800 to-emerald-600 flex items-center justify-center text-2xl font-bold font-display shrink-0 text-white">04</div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-xl font-bold group-hover:text-apex-accent transition-colors">舒适功能层</h3>
+                                <span class="text-xs text-gray-500 font-mono bg-white/5 px-3 py-1 rounded-full">速干&lt;30min</span>
+                            </div>
+                            <p class="text-gray-400 text-sm mb-2">聚酯纤维网眼布 + 银离子抗菌处理，抑菌率&gt;99%</p>
+                            <div class="flex gap-2 text-xs text-gray-500">
+                                <span class="px-2 py-1 bg-white/5 rounded">吸湿排汗</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">抗菌防臭</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">透气网眼</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="layer-card material-layer glass-panel-light rounded-xl p-6 flex items-center gap-6 cursor-pointer group">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-pink-300 to-orange-200 flex items-center justify-center text-2xl font-bold font-display shrink-0 text-gray-800">05</div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-xl font-bold group-hover:text-apex-accent transition-colors">皮肤贴合层</h3>
+                                <span class="text-xs text-gray-500 font-mono bg-white/5 px-3 py-1 rounded-full">1-2mm</span>
+                            </div>
+                            <p class="text-gray-400 text-sm mb-2">亲水型水凝胶电极 + 医用硅胶防过敏涂层，接触阻抗&lt;10kΩ</p>
+                            <div class="flex gap-2 text-xs text-gray-500">
+                                <span class="px-2 py-1 bg-white/5 rounded">低阻抗</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">防过敏</span>
+                                <span class="px-2 py-1 bg-white/5 rounded">可水洗</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-6 mt-16 scroll-reveal">
+                    <div class="glass-panel p-6 rounded-xl border-l-4 border-apex-accent">
+                        <h4 class="font-bold mb-2 text-apex-accent">银纤维升级</h4>
+                        <p class="text-sm text-gray-400">银镀锦纶纱线替代纯银纤维，成本降低40%，保持导电性能</p>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl border-l-4 border-apex-purple">
+                        <h4 class="font-bold mb-2 text-apex-purple">双传感融合</h4>
+                        <p class="text-sm text-gray-400">肌电+压力双模态传感，精度提升35%，误报率更低</p>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl border-l-4 border-emerald-500">
+                        <h4 class="font-bold mb-2 text-emerald-500">模块化维护</h4>
+                        <p class="text-sm text-gray-400">主控可拆卸，衣物可机洗，水洗后性能衰减&lt;5%</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3D Model Showcase Section -->
+        <section id="models" class="py-32 bg-apex-dark relative overflow-hidden">
+            <div class="max-w-7xl mx-auto px-6 relative z-10">
+                <div class="text-center mb-12 scroll-reveal">
+                    <h2 class="font-display text-4xl md:text-6xl font-bold mb-6">3D<span class="text-apex-accent">.</span>MODEL</h2>
+                    <p class="text-gray-400 max-w-2xl mx-auto text-lg">全息肌肉标注系统，实时交互展示</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- 上半身健身衣 -->
+                    <div class="glass-panel rounded-2xl overflow-hidden" style="height: 600px;">
+                        <div class="text-center py-4 border-b border-white/10">
+                            <h3 class="font-display text-xl font-bold">上半身 · UPPER BODY</h3>
+                            <p class="text-xs text-gray-500 mt-1">胸大肌 · 三角肌 · 背阔肌 · 肱二头肌</p>
+                        </div>
+                        <iframe 
+                            src="./apex-shirt-viewer.html" 
+                            width="100%" 
+                            height="500px" 
+                            frameborder="0"
+                            style="display: block;"
+                        ></iframe>
+                    </div>
+
+                    <!-- 下半身健身裤 -->
+                    <div class="glass-panel rounded-2xl overflow-hidden" style="height: 600px;">
+                        <div class="text-center py-4 border-b border-white/10">
+                            <h3 class="font-display text-xl font-bold">下半身 · LOWER BODY</h3>
+                            <p class="text-xs text-gray-500 mt-1">臀大肌 · 股四头肌 · 腘绳肌 · 腓肠肌</p>
+                        </div>
+                        <iframe 
+                            src="./apex-3d-viewer.html" 
+                            width="100%" 
+                            height="500px" 
+                            frameborder="0"
+                            style="display: block;"
+                        ></iframe>
+                    </div>
+                </div>
+
+                <div class="text-center mt-8 text-sm text-gray-500">
+                    <p>💡 拖动旋转 · 滚轮缩放 · 点击按钮切换全息模式</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sensor Map Section -->
+        <section id="sensors" class="py-32 relative">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center mb-20 scroll-reveal">
+                    <h2 class="font-display text-4xl md:text-6xl font-bold mb-6">SENSOR<span class="text-apex-accent">.</span>ARRAY</h2>
+                    <p class="text-gray-400 max-w-2xl mx-auto text-lg">24个高精度传感点，全域覆盖8大肌群</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="relative scroll-reveal">
+                        <div class="aspect-[3/4] bg-gradient-to-br from-gray-900/80 to-black/80 rounded-2xl border border-white/10 p-8 relative overflow-hidden backdrop-blur-sm">
+                            <div class="absolute inset-0 tech-grid opacity-20"></div>
+
+                            <svg class="w-full h-full" viewBox="0 0 200 400" fill="none">
+                                <defs>
+                                    <filter id="glow">
+                                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                                        <feMerge>
+                                            <feMergeNode in="coloredBlur"/>
+                                            <feMergeNode in="SourceGraphic"/>
+                                        </feMerge>
+                                    </filter>
+                                </defs>
+
+                                <path d="M100 30 C115 30 125 45 125 60 C125 75 135 85 135 100 L135 180 C135 200 130 220 125 250 M100 30 C85 30 75 45 75 60 C75 75 65 85 65 100 L65 180 C65 200 70 220 75 250" 
+                                      stroke="rgba(255,255,255,0.2)" stroke-width="1.5" fill="none"/>
+
+                                <g filter="url(#glow)">
+                                    <circle cx="85" cy="90" r="5" fill="#e63946" class="sensor-dot" style="animation-delay: 0s"/>
+                                    <circle cx="115" cy="90" r="5" fill="#e63946" class="sensor-dot" style="animation-delay: 0.2s"/>
+                                    <circle cx="70" cy="75" r="5" fill="#e63946" class="sensor-dot" style="animation-delay: 0.4s"/>
+                                    <circle cx="130" cy="75" r="5" fill="#e63946" class="sensor-dot" style="animation-delay: 0.6s"/>
+                                    <circle cx="80" cy="130" r="5" fill="#e63946" class="sensor-dot" style="animation-delay: 0.8s"/>
+                                    <circle cx="120" cy="130" r="5" fill="#e63946" class="sensor-dot" style="animation-delay: 1s"/>
+                                    <circle cx="85" cy="160" r="5" fill="#2a9d8f" class="sensor-dot" style="animation-delay: 1.2s"/>
+                                    <circle cx="115" cy="160" r="5" fill="#2a9d8f" class="sensor-dot" style="animation-delay: 1.4s"/>
+                                    <circle cx="60" cy="120" r="4" fill="#7b2cbf" class="sensor-dot" style="animation-delay: 1.6s"/>
+                                    <circle cx="140" cy="120" r="4" fill="#7b2cbf" class="sensor-dot" style="animation-delay: 1.8s"/>
+                                    <circle cx="100" cy="200" r="6" fill="#00d4ff" class="sensor-dot" style="animation-delay: 2s"/>
+                                </g>
+
+                                <path d="M85 90 Q100 110 115 90 M80 130 L100 160 L120 130" 
+                                      stroke="rgba(0,212,255,0.3)" stroke-width="1" fill="none" stroke-dasharray="3,3"/>
+                            </svg>
+
+                            <div class="absolute top-8 left-8 text-xs font-mono text-apex-accent">FRONT VIEW</div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 scroll-reveal">
+                        <div class="glass-panel p-4 rounded-lg flex justify-between items-center group hover:border-apex-accent/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-4">
+                                <div class="w-3 h-3 rounded-full bg-red-500 sensor-dot"></div>
+                                <div>
+                                    <div class="font-medium">胸大肌 / 背阔肌</div>
+                                    <div class="text-xs text-gray-500">Pectoralis / Latissimus</div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-display font-bold text-gray-700 group-hover:text-apex-accent transition-colors">06</span>
+                        </div>
+
+                        <div class="glass-panel p-4 rounded-lg flex justify-between items-center group hover:border-apex-accent/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-4">
+                                <div class="w-3 h-3 rounded-full bg-red-500 sensor-dot" style="animation-delay: 0.3s"></div>
+                                <div>
+                                    <div class="font-medium">三角肌 / 斜方肌</div>
+                                    <div class="text-xs text-gray-500">Deltoid / Trapezius</div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-display font-bold text-gray-700 group-hover:text-apex-accent transition-colors">04</span>
+                        </div>
+
+                        <div class="glass-panel p-4 rounded-lg flex justify-between items-center group hover:border-apex-accent/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-4">
+                                <div class="w-3 h-3 rounded-full bg-emerald-500 sensor-dot" style="animation-delay: 0.6s"></div>
+                                <div>
+                                    <div class="font-medium">腹直肌 / 竖脊肌</div>
+                                    <div class="text-xs text-gray-500">Rectus Abdominis / Erector Spinae</div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-display font-bold text-gray-700 group-hover:text-apex-accent transition-colors">04</span>
+                        </div>
+
+                        <div class="glass-panel p-4 rounded-lg flex justify-between items-center group hover:border-apex-accent/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-4">
+                                <div class="w-3 h-3 rounded-full bg-purple-500 sensor-dot" style="animation-delay: 0.9s"></div>
+                                <div>
+                                    <div class="font-medium">肱二头肌 / 肱三头肌</div>
+                                    <div class="text-xs text-gray-500">Biceps / Triceps</div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-display font-bold text-gray-700 group-hover:text-apex-accent transition-colors">04</span>
+                        </div>
+
+                        <div class="glass-panel p-4 rounded-lg flex justify-between items-center group hover:border-apex-accent/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-4">
+                                <div class="w-3 h-3 rounded-full bg-apex-accent sensor-dot" style="animation-delay: 1.2s"></div>
+                                <div>
+                                    <div class="font-medium">主控模块</div>
+                                    <div class="text-xs text-gray-500">Control Module / 后腰正中</div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-display font-bold text-gray-700 group-hover:text-apex-accent transition-colors">01</span>
+                        </div>
+
+                        <div class="mt-8 p-4 rounded-lg bg-apex-accent/10 border border-apex-accent/20">
+                            <p class="text-sm text-apex-accent">
+                                <span class="font-bold">位置优化：</span>后腰正中（第3-4腰椎水平）位于所有传感器几何中心，线束总长度最短，运动干扰最小，拆卸维护最便捷。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- QR Code / Mini Program Section -->
+        <section id="experience" class="py-32 bg-apex-dark relative overflow-hidden">
+            <div class="absolute inset-0 tech-grid opacity-10"></div>
+            <div class="max-w-5xl mx-auto px-6 relative z-10">
+                <div class="glass-panel rounded-3xl p-8 md:p-12 scroll-reveal border border-apex-accent/20">
+                    <div class="grid md:grid-cols-2 gap-12 items-center">
+                        <div class="space-y-6">
+                            <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-apex-accent/30 bg-apex-accent/10">
+                                <span class="w-2 h-2 rounded-full bg-apex-accent animate-pulse"></span>
+                                <span class="text-xs tracking-widest text-apex-accent">INTERACTIVE DEMO</span>
+                            </div>
+
+                            <h2 class="font-display text-4xl font-bold">体验传感器<br><span class="gradient-text">实时监测系统</span></h2>
+
+                            <p class="text-gray-400 leading-relaxed">
+                                扫描右侧二维码或点击下方按钮，立即进入智能健身衣传感器演示小程序。实时查看肌肉激活热力图，感受双模传感技术的精准监测。
+                            </p>
+
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-3 text-sm text-gray-400">
+                                    <svg class="w-5 h-5 text-apex-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    <span>实时 3D 热力图可视化</span>
+                                </div>
+                                <div class="flex items-center gap-3 text-sm text-gray-400">
+                                    <svg class="w-5 h-5 text-apex-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    <span>双模传感数据演示</span>
+                                </div>
+                                <div class="flex items-center gap-3 text-sm text-gray-400">
+                                    <svg class="w-5 h-5 text-apex-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    <span>动作纠正预警模拟</span>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-4 pt-4">
+                                <button onclick="openQRModal()" class="px-8 py-4 bg-apex-accent text-black font-bold tracking-wider hover:bg-white transition-all rounded-lg btn-glow flex items-center justify-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    扫码体验
+                                </button>
+                                <a href="https://jianshenyi.netlify.app/" target="_blank" class="px-8 py-4 border border-white/20 hover:border-apex-accent hover:text-apex-accent transition-all rounded-lg text-center">
+                                    直接访问 →
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Real QR Code Image -->
+                        <div class="relative flex justify-center">
+                            <div class="relative">
+                                <div class="absolute inset-0 border-2 border-apex-accent/20 rounded-2xl transform rotate-3"></div>
+                                <div class="absolute inset-0 border-2 border-apex-accent/10 rounded-2xl transform -rotate-3"></div>
+
+                                <div class="relative z-10 shadow-2xl cursor-pointer" onclick="openQRModal()">
+                                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXIAAAFyAQAAAADAX2ykAAACyUlEQVR4nO1bUYrjMAyVFEM/E5gDzFHcmw17s+QoPcBA8llo0CLZbnay4Lgwk403eh9uar0P4VdZcqwiwysY6CU6gPHzoA37GsbPgzbsaxg/D9qwr2H8PGjDvobxz7A+GOEAsQPAq0wO6ABgSrbrgf0vB52T71kwAjDfHHAvmn/wXVRt1MTH9r8YdFL+9IxQDeduRhi6Jqiqgb2zP6WgYmbA2fl4hRk1iMHL8K/92QJtMr7i9PxBojYOEHZqW596fz8ufrayFU/6OCOHYerkCYAP7D8Zv2R9Bi2RO6m0xobxQ4Yr6DCH8vkrvxhk/APELy8TQ9eEBw5PGtj7+UPG/9b1gXD4kfMR+FEmWuaYddtHIrWRwr2tfx50UP7kgH+9i4ITYjwO3y5JaZnb159SUDHznHy3PKK/uQd6BlAx/9iXfR/njuc/Gb+sfr5jHGB2AO2nQ/2qcg/dZ+LZeuZBx8y/0D6AeWyYe82/aQBNx8xitfxbr75eFIyCalXVJGnHRLT6qurz74W1jOJ+ugS5o0FrLpV7T3+KQeXUs59/UbIuQDsCw/T24OGqNRUCe56tfq4///byfQldWDZpy7+16wuqZZQ21lLQPN95PCz/1sxn5ntMvYLwwtmH0kru92/RcFT/y0En40OI1ecmHfdnjeQ21c86Z/Vz5f1XHONXDsFhgNCOtXRyHNX/ctB541eRplPq9cvtg5jtfqHy/kmQ+9+wIQ/vsklPLnVS7uhPOegF7on5/tk/2YOcdeU6qRdpY06W6mtPf4pB5dRTv58cY+tGyr+idLvc/1p9Vam+bvWdB+mSlVsj0ZxRXmfJnVK6Ljya/2T819cHpf85lM4Kyb/2/4X/o3/Sj28Sq7NMzg58H6+Dd/KHjP+j/ZMYh5iJAabYpGP1VZW/T7T/d1elFxk/C8qb/4Lx86AN+xrGz4M27GsYP4/a1+c3hhqPkkmOkIYAAAAASUVORK5CYII=" alt="扫码体验小程序" class="w-64 h-auto rounded-xl">
+                                </div>
+
+                                <div class="absolute -top-4 -right-4 bg-apex-accent text-black text-xs font-bold px-3 py-1 rounded-full floating" style="animation-delay: 0.5s;">
+                                    LIVE DEMO
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Specs Section -->
+        <section id="specs" class="py-32">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="grid md:grid-cols-2 gap-16">
+                    <div class="scroll-reveal">
+                        <h2 class="font-display text-4xl font-bold mb-12">TECHNICAL<br><span class="text-gray-500">SPECIFICATIONS</span></h2>
+
+                        <div class="space-y-0">
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">传感覆盖</span>
+                                <span class="font-medium">8大肌群 / 16-24点</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">连接协议</span>
+                                <span class="font-medium">Bluetooth 5.0 / BLE</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">续航时间</span>
+                                <span class="font-medium">≥ 8 小时连续监测</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">充电接口</span>
+                                <span class="font-medium">USB Type-C / 2h快充</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">主控模块</span>
+                                <span class="font-medium">40×60×8mm / 25g / IP67</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">面料成分</span>
+                                <span class="font-medium">锦纶82% + 氨纶18%</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">导电材料</span>
+                                <span class="font-medium">银镀锦纶纱 / 电阻&lt;10Ω/m</span>
+                            </div>
+                            <div class="spec-row flex justify-between py-4 border-b border-white/10 transition-colors cursor-pointer">
+                                <span class="text-gray-500 font-mono text-sm">系统兼容</span>
+                                <span class="font-medium">iOS 14+ / Android 10+</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative scroll-reveal">
+                        <div class="sticky top-32">
+                            <div class="aspect-[4/5] rounded-2xl bg-gradient-to-br from-gray-900/80 to-black/80 border border-white/10 p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
+                                <div class="absolute inset-0 bg-noise opacity-50"></div>
+                                <div class="relative h-full flex flex-col justify-between">
+                                    <div>
+                                        <div class="text-xs tracking-widest text-gray-500 mb-2 font-mono">CONTROL MODULE</div>
+                                        <div class="font-display text-3xl font-bold mb-4">SIDE-MOUNTED<br>PROCESSOR</div>
+                                        <div class="w-full h-px bg-gradient-to-r from-apex-accent to-transparent mb-4"></div>
+                                    </div>
+
+                                    <div class="space-y-6">
+                                        <div class="grid grid-cols-3 gap-4">
+                                            <div class="glass-panel-light p-4 rounded-lg text-center">
+                                                <div class="text-apex-accent font-bold text-lg">nRF</div>
+                                                <div class="text-xs text-gray-500 mt-1">52840</div>
+                                            </div>
+                                            <div class="glass-panel-light p-4 rounded-lg text-center">
+                                                <div class="text-apex-purple font-bold text-lg">BLE</div>
+                                                <div class="text-xs text-gray-500 mt-1">5.0</div>
+                                            </div>
+                                            <div class="glass-panel-light p-4 rounded-lg text-center">
+                                                <div class="text-emerald-500 font-bold text-lg">400</div>
+                                                <div class="text-xs text-gray-500 mt-1">mAh</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="glass-panel-light p-4 rounded-lg">
+                                            <div class="flex justify-between items-center mb-2">
+                                                <span class="text-sm text-gray-400">快拆扣具设计</span>
+                                                <span class="text-xs text-apex-accent">磁吸式</span>
+                                            </div>
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-sm text-gray-400">防护等级</span>
+                                                <span class="text-xs text-apex-accent">IP67</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="text-xs text-gray-500 leading-relaxed">
+                                            位于后腰正中，几何中心位置确保线束最短，运动干扰最小，拆卸维护最便捷。
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="py-32 relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-b from-apex-black via-apex-dark to-apex-black"></div>
+            <div class="max-w-4xl mx-auto px-6 text-center relative z-10">
+                <div class="scroll-reveal space-y-8">
+                    <h2 class="font-display text-5xl md:text-7xl font-bold tracking-tighter">
+                        TRAIN SMARTER.<br>
+                        <span class="text-gray-600">NOT HARDER.</span>
+                    </h2>
+                    <p class="text-gray-400 max-w-xl mx-auto text-lg">
+                        加入等待列表，第一时间获取产品发布信息与早鸟优惠。或立即体验传感器演示小程序。
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+                        <input type="email" placeholder="Enter your email" class="px-6 py-4 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:border-apex-accent w-full sm:w-80 text-white placeholder-gray-600 backdrop-blur-sm">
+                        <button class="px-8 py-4 bg-white text-black font-bold tracking-wider hover:bg-apex-accent transition-colors rounded-lg">
+                            NOTIFY ME
+                        </button>
+                    </div>
+                    <div class="pt-8">
+                        <button onclick="openQRModal()" class="text-apex-accent hover:text-white transition-colors text-sm tracking-widest border-b border-apex-accent/30 pb-1">
+                            或扫码体验演示小程序 →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="py-12 border-t border-white/10 bg-apex-black">
+            <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="font-display text-2xl font-bold tracking-tighter">
+                    APEX<span class="text-apex-accent">.</span>SENSE
+                </div>
+                <div class="text-sm text-gray-600 font-mono">
+                    © 2026 APEX SENSE. All rights reserved.
+                </div>
+                <div class="flex space-x-6 text-sm text-gray-500">
+                    <a href="#" class="hover:text-apex-accent transition-colors">Privacy</a>
+                    <a href="#" class="hover:text-apex-accent transition-colors">Terms</a>
+                    <a href="#" class="hover:text-apex-accent transition-colors">Contact</a>
+                </div>
+            </div>
+        </footer>
+
+        <!-- QR Modal with Real Image -->
+        <div id="qrModal" class="qr-modal fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onclick="closeQRModal(event)">
+            <div class="glass-panel rounded-2xl p-8 max-w-md w-full transform scale-95 transition-transform duration-300" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-display text-2xl font-bold">扫码体验</h3>
+                    <button onclick="closeQRModal()" class="text-gray-500 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl p-6 mb-6">
+                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXIAAAFyAQAAAADAX2ykAAACyUlEQVR4nO1bUYrjMAyVFEM/E5gDzFHcmw17s+QoPcBA8llo0CLZbnay4Lgwk403eh9uar0P4VdZcqwiwysY6CU6gPHzoA37GsbPgzbsaxg/D9qwr2H8PGjDvobxz7A+GOEAsQPAq0wO6ABgSrbrgf0vB52T71kwAjDfHHAvmn/wXVRt1MTH9r8YdFL+9IxQDeduRhi6Jqiqgb2zP6WgYmbA2fl4hRk1iMHL8K/92QJtMr7i9PxBojYOEHZqW596fz8ufrayFU/6OCOHYerkCYAP7D8Zv2R9Bi2RO6m0xobxQ4Yr6DCH8vkrvxhk/APELy8TQ9eEBw5PGtj7+UPG/9b1gXD4kfMR+FEmWuaYddtHIrWRwr2tfx50UP7kgH+9i4ITYjwO3y5JaZnb159SUDHznHy3PKK/uQd6BlAx/9iXfR/njuc/Gb+sfr5jHGB2AO2nQ/2qcg/dZ+LZeuZBx8y/0D6AeWyYe82/aQBNx8xitfxbr75eFIyCalXVJGnHRLT6qurz74W1jOJ+ugS5o0FrLpV7T3+KQeXUs59/UbIuQDsCw/T24OGqNRUCe56tfq4///byfQldWDZpy7+16wuqZZQ21lLQPN95PCz/1sxn5ntMvYLwwtmH0kru92/RcFT/y0En40OI1ecmHfdnjeQ21c86Z/Vz5f1XHONXDsFhgNCOtXRyHNX/ctB541eRplPq9cvtg5jtfqHy/kmQ+9+wIQ/vsklPLnVS7uhPOegF7on5/tk/2YOcdeU6qRdpY06W6mtPf4pB5dRTv58cY+tGyr+idLvc/1p9Vam+bvWdB+mSlVsj0ZxRXmfJnVK6Ljya/2T819cHpf85lM4Kyb/2/4X/o3/Sj28Sq7NMzg58H6+Dd/KHjP+j/ZMYh5iJAabYpGP1VZW/T7T/d1elFxk/C8qb/4Lx86AN+xrGz4M27GsYP4/a1+c3hhqPkkmOkIYAAAAASUVORK5CYII=" alt="智能健身衣传感器演示" class="w-full h-auto rounded-lg">
+                    <p class="text-center text-gray-800 mt-4 font-medium">智能健身衣传感器演示</p>
+                    <p class="text-center text-gray-500 text-sm">jianshenyi.netlify.app</p>
+                </div>
+
+                <a href="https://jianshenyi.netlify.app/" target="_blank" class="block w-full py-4 bg-apex-accent text-black font-bold text-center rounded-lg hover:bg-white transition-colors">
+                    直接访问小程序 →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js Particle System -->
+    <script>
+        // Particle System Configuration
+        const PARTICLE_COUNT = 2000;
+        const CONNECTION_DISTANCE = 100;
+        const MOUSE_INFLUENCE_RADIUS = 200;
+
+        let scene, camera, renderer, particles, particlePositions, particleVelocities;
+        let mouseX = 0, mouseY = 0;
+        let targetMouseX = 0, targetMouseY = 0;
+        let windowHalfX = window.innerWidth / 2;
+        let windowHalfY = window.innerHeight / 2;
+        let animationId;
+
+        function initParticles() {
+            const canvas = document.getElementById('particle-canvas');
+
+            // Scene setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 2000);
+            camera.position.z = 500;
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas, 
+                alpha: true, 
+                antialias: true 
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x000000, 0);
+
+            // Create particles
+            const geometry = new THREE.BufferGeometry();
+            particlePositions = new Float32Array(PARTICLE_COUNT * 3);
+            particleVelocities = new Float32Array(PARTICLE_COUNT * 3);
+            const colors = new Float32Array(PARTICLE_COUNT * 3);
+
+            const color1 = new THREE.Color(0x00d4ff); // Cyan
+            const color2 = new THREE.Color(0x7b2cbf); // Purple
+            const color3 = new THREE.Color(0xffffff); // White
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+
+                // Position
+                particlePositions[i3] = (Math.random() - 0.5) * 2000;
+                particlePositions[i3 + 1] = (Math.random() - 0.5) * 2000;
+                particlePositions[i3 + 2] = (Math.random() - 0.5) * 1000;
+
+                // Velocity
+                particleVelocities[i3] = (Math.random() - 0.5) * 0.5;
+                particleVelocities[i3 + 1] = (Math.random() - 0.5) * 0.5;
+                particleVelocities[i3 + 2] = (Math.random() - 0.5) * 0.3;
+
+                // Color
+                const mixedColor = new THREE.Color();
+                const rand = Math.random();
+                if (rand < 0.4) {
+                    mixedColor.copy(color1);
+                } else if (rand < 0.7) {
+                    mixedColor.copy(color2);
+                } else {
+                    mixedColor.copy(color3);
+                }
+                colors[i3] = mixedColor.r;
+                colors[i3 + 1] = mixedColor.g;
+                colors[i3 + 2] = mixedColor.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // Material
+            const material = new THREE.PointsMaterial({
+                size: 3,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            // Add line connections
+            const lineGeometry = new THREE.BufferGeometry();
+            const linePositions = new Float32Array(PARTICLE_COUNT * PARTICLE_COUNT * 3);
+            lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+            lineGeometry.setDrawRange(0, 0);
+
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: 0x00d4ff,
+                transparent: true,
+                opacity: 0.15,
+                blending: THREE.AdditiveBlending
+            });
+
+            const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+            scene.add(lines);
+
+            // Store lines reference for animation
+            particles.userData.lines = lines;
+            particles.userData.linePositions = linePositions;
+
+            // Event listeners
+            document.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('resize', onWindowResize);
+
+            // Start animation
+            animate();
+        }
+
+        function onMouseMove(event) {
+            targetMouseX = (event.clientX - windowHalfX) * 0.5;
+            targetMouseY = (event.clientY - windowHalfY) * 0.5;
+        }
+
+        function onWindowResize() {
+            windowHalfX = window.innerWidth / 2;
+            windowHalfY = window.innerHeight / 2;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+
+            // Smooth mouse follow
+            mouseX += (targetMouseX - mouseX) * 0.05;
+            mouseY += (targetMouseY - mouseY) * 0.05;
+
+            // Rotate camera based on mouse
+            camera.position.x += (mouseX - camera.position.x) * 0.02;
+            camera.position.y += (-mouseY - camera.position.y) * 0.02;
+            camera.lookAt(scene.position);
+
+            // Update particles
+            const positions = particles.geometry.attributes.position.array;
+            const lines = particles.userData.lines;
+            const linePositions = particles.userData.linePositions;
+            let lineIndex = 0;
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+
+                // Update position with velocity
+                positions[i3] += particleVelocities[i3];
+                positions[i3 + 1] += particleVelocities[i3 + 1];
+                positions[i3 + 2] += particleVelocities[i3 + 2];
+
+                // Mouse influence - particles are attracted to mouse
+                const dx = mouseX * 2 - positions[i3];
+                const dy = -mouseY * 2 - positions[i3 + 1];
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < MOUSE_INFLUENCE_RADIUS) {
+                    const force = (MOUSE_INFLUENCE_RADIUS - dist) / MOUSE_INFLUENCE_RADIUS;
+                    particleVelocities[i3] += dx * force * 0.001;
+                    particleVelocities[i3 + 1] += dy * force * 0.001;
+                }
+
+                // Boundary check - wrap around
+                if (positions[i3] > 1000) positions[i3] = -1000;
+                if (positions[i3] < -1000) positions[i3] = 1000;
+                if (positions[i3 + 1] > 1000) positions[i3 + 1] = -1000;
+                if (positions[i3 + 1] < -1000) positions[i3 + 1] = 1000;
+                if (positions[i3 + 2] > 500) positions[i3 + 2] = -500;
+                if (positions[i3 + 2] < -500) positions[i3 + 2] = 500;
+
+                // Damping
+                particleVelocities[i3] *= 0.99;
+                particleVelocities[i3 + 1] *= 0.99;
+                particleVelocities[i3 + 2] *= 0.99;
+
+                // Connect nearby particles
+                if (i % 5 === 0) { // Only check every 5th particle for performance
+                    for (let j = i + 1; j < Math.min(i + 50, PARTICLE_COUNT); j++) {
+                        const j3 = j * 3;
+                        const dx = positions[i3] - positions[j3];
+                        const dy = positions[i3 + 1] - positions[j3 + 1];
+                        const dz = positions[i3 + 2] - positions[j3 + 2];
+                        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                        if (distance < CONNECTION_DISTANCE && lineIndex < linePositions.length - 6) {
+                            linePositions[lineIndex++] = positions[i3];
+                            linePositions[lineIndex++] = positions[i3 + 1];
+                            linePositions[lineIndex++] = positions[i3 + 2];
+                            linePositions[lineIndex++] = positions[j3];
+                            linePositions[lineIndex++] = positions[j3 + 1];
+                            linePositions[lineIndex++] = positions[j3 + 2];
+                        }
+                    }
+                }
+            }
+
+            particles.geometry.attributes.position.needsUpdate = true;
+            lines.geometry.attributes.position.needsUpdate = true;
+            lines.geometry.setDrawRange(0, lineIndex / 3);
+
+            // Rotate entire particle system slowly
+            particles.rotation.y += 0.0005;
+            particles.rotation.x += 0.0002;
+
+            renderer.render(scene, camera);
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initParticles);
+
+        // GSAP Animations
+        gsap.registerPlugin(ScrollTrigger);
+
+        const revealElements = document.querySelectorAll('.scroll-reveal');
+        revealElements.forEach((element, index) => {
+            gsap.to(element, {
+                opacity: 1,
+                y: 0,
+                duration: 1,
+                ease: "power3.out",
+                scrollTrigger: {
+                    trigger: element,
+                    start: "top 85%",
+                    toggleActions: "play none none reverse"
+                },
+                delay: index * 0.05
+            });
+        });
+
+        // Smooth Scroll
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // QR Modal Functions
+        function openQRModal() {
+            document.getElementById('qrModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeQRModal(event) {
+            if (!event || event.target.id === 'qrModal' || event.target.closest('button')) {
+                document.getElementById('qrModal').classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Navbar scroll effect
+        let lastScroll = 0;
+        window.addEventListener('scroll', () => {
+            const navbar = document.getElementById('navbar');
+            const currentScroll = window.pageYOffset;
+
+            if (currentScroll > 100) {
+                navbar.classList.add('bg-black/80', 'backdrop-blur-md');
+            } else {
+                navbar.classList.remove('bg-black/80', 'backdrop-blur-md');
+            }
+
+            lastScroll = currentScroll;
+        });
+
+        // Material layer interactions
+        document.querySelectorAll('.material-layer').forEach((layer, index) => {
+            layer.addEventListener('mouseenter', () => {
+                gsap.to(layer, {
+                    x: 10,
+                    scale: 1.02,
+                    duration: 0.3,
+                    ease: "power2.out"
+                });
+            });
+
+            layer.addEventListener('mouseleave', () => {
+                gsap.to(layer, {
+                    x: 0,
+                    scale: 1,
+                    duration: 0.3,
+                    ease: "power2.out"
+                });
+            });
+        });
+    </script>
+</body>
+</html>
