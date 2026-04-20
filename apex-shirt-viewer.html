@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FitSense 3D 健身衣查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00d4ff;
+            font-size: 18px;
+            text-align: center;
+            z-index: 100;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 212, 255, 0.2);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #holo-btn {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 28px;
+            background: rgba(0, 212, 255, 0.15);
+            border: 1px solid rgba(0, 212, 255, 0.4);
+            color: #00d4ff;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+            z-index: 10;
+        }
+        #holo-btn:hover {
+            background: rgba(0, 212, 255, 0.25);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="loading-spinner"></div>
+        加载中...
+    </div>
+    <div id="canvas-container"></div>
+    <button id="holo-btn">💠 全息模式</button>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        let scene, camera, renderer, controls;
+        let model, originalMaterials = [];
+        let starField, holoParticles;
+        let isHoloMode = false;
+        let isInteracting = false;
+        let clock = new THREE.Clock();
+
+        function init() {
+            // 场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030308);
+
+            // 相机
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0.8, 3.5);
+
+            // 渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 2;
+            controls.maxDistance = 8;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.2;
+            controls.target.set(0, 0.3, 0);
+
+            // 交互检测
+            controls.addEventListener('start', () => { isInteracting = true; });
+            controls.addEventListener('end', () => { isInteracting = false; });
+
+            // 光照
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            mainLight.position.set(5, 10, 7);
+            scene.add(mainLight);
+
+            const fillLight = new THREE.DirectionalLight(0x88ccff, 0.5);
+            fillLight.position.set(-5, 5, -5);
+            scene.add(fillLight);
+
+            const rimLight = new THREE.DirectionalLight(0xff88ff, 0.3);
+            rimLight.position.set(0, -3, -5);
+            scene.add(rimLight);
+
+            // 星空背景
+            createStarField();
+
+            // 加载模型
+            loadModel();
+
+            // 事件
+            window.addEventListener('resize', onResize);
+            document.getElementById('holo-btn').addEventListener('click', toggleHolo);
+
+            animate();
+        }
+
+        function createStarField() {
+            const starGeometry = new THREE.BufferGeometry();
+            const starCount = 3000;
+            const positions = new Float32Array(starCount * 3);
+            const colors = new Float32Array(starCount * 3);
+
+            for (let i = 0; i < starCount; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const r = 30 + Math.random() * 70;
+
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = r * Math.cos(phi);
+
+                const colorChoice = Math.random();
+                if (colorChoice < 0.4) {
+                    colors[i * 3] = 0.5; colors[i * 3 + 1] = 0.8; colors[i * 3 + 2] = 1.0;
+                } else if (colorChoice < 0.7) {
+                    colors[i * 3] = 0.8; colors[i * 3 + 1] = 0.5; colors[i * 3 + 2] = 1.0;
+                } else {
+                    colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0;
+                }
+            }
+
+            starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const starMaterial = new THREE.PointsMaterial({
+                size: 0.15,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+
+            starField = new THREE.Points(starGeometry, starMaterial);
+            scene.add(starField);
+        }
+
+        function loadModel() {
+            const loader = new GLTFLoader();
+
+            loader.load(
+                '3d-model/shirt.glb',
+                function (gltf) {
+                    model = gltf.scene;
+
+                    // 缩放和位置
+                    model.scale.set(1, 1, 1);
+                    model.position.set(0, -0.3, 0);
+
+                    // 保存原始材质并调整亮度
+                    model.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+
+                            if (child.material) {
+                                originalMaterials.push({
+                                    mesh: child,
+                                    material: child.material
+                                });
+                                child.material.emissiveIntensity = 0.3;
+                            }
+                        }
+                    });
+
+                    scene.add(model);
+                    document.getElementById('loading').style.display = 'none';
+
+                    // 创建边缘发光
+                    createEdgeGlow();
+
+                    // 创建吸附粒子
+                    createAdditiveParticles();
+
+                    // 创建上半身肌肉标签
+                    createUpperBodyLabels();
+                },
+                function (progress) {
+                    console.log('Loading:', (progress.loaded / progress.total * 100) + '%');
+                },
+                function (error) {
+                    console.error('Error loading model:', error);
+                    document.getElementById('loading').textContent = '加载失败，请刷新重试';
+                }
+            );
+        }
+
+        function createEdgeGlow() {
+            if (!model) return;
+
+            model.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    const edges = new THREE.EdgesGeometry(child.geometry, 15);
+                    const lineMaterial = new THREE.LineBasicMaterial({
+                        color: 0x00d4ff,
+                        transparent: true,
+                        opacity: 0.2
+                    });
+                    const line = new THREE.LineSegments(edges, lineMaterial);
+                    line.scale.copy(child.scale);
+                    line.rotation.copy(child.rotation);
+                    line.position.copy(child.getWorldPosition(new THREE.Vector3()));
+                    scene.add(line);
+                    line.userData.pulsePhase = Math.random() * Math.PI * 2;
+                }
+            });
+        }
+
+        function createAdditiveParticles() {
+            if (!model) return;
+
+            const particleCount = 400;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = new Float32Array(particleCount * 3);
+            const phases = new Float32Array(particleCount);
+
+            const vertices = [];
+            model.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    const pos = child.geometry.attributes.position;
+                    if (pos) {
+                        const worldPos = child.getWorldPosition(new THREE.Vector3());
+                        for (let i = 0; i < pos.count; i++) {
+                            vertices.push({
+                                x: pos.getX(i) + worldPos.x,
+                                y: pos.getY(i) + worldPos.y,
+                                z: pos.getZ(i) + worldPos.z
+                            });
+                        }
+                    }
+                }
+            });
+
+            if (vertices.length === 0) {
+                for (let i = 0; i < particleCount; i++) {
+                    positions[i * 3] = (Math.random() - 0.5) * 1.5;
+                    positions[i * 3 + 1] = Math.random() * 2;
+                    positions[i * 3 + 2] = (Math.random() - 0.5) * 1;
+
+                    velocities[i * 3] = (Math.random() - 0.5) * 0.002;
+                    velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.002;
+                    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.002;
+
+                    phases[i] = Math.random() * Math.PI * 2;
+                }
+            } else {
+                for (let i = 0; i < particleCount; i++) {
+                    const v = vertices[Math.floor(Math.random() * vertices.length)];
+                    positions[i * 3] = v.x;
+                    positions[i * 3 + 1] = v.y;
+                    positions[i * 3 + 2] = v.z;
+
+                    velocities[i * 3] = (Math.random() - 0.5) * 0.003;
+                    velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.003;
+                    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.003;
+
+                    phases[i] = Math.random() * Math.PI * 2;
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.userData.velocities = velocities;
+            geometry.userData.phases = phases;
+
+            const material = new THREE.PointsMaterial({
+                color: 0x88ddff,
+                size: 0.02,
+                transparent: true,
+                opacity: 0.4,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+
+            holoParticles = new THREE.Points(geometry, material);
+            scene.add(holoParticles);
+        }
+
+        function createTextSprite(text, color = '#00d4ff', size = 0.6) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const fontSize = Math.round(24 * size);
+            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 12;
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1;
+            ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+
+            const spriteMaterial = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthTest: true,
+                depthWrite: false
+            });
+
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(0.5 + size * 0.2, 0.1 + size * 0.05, 1);
+
+            return sprite;
+        }
+
+        function createUpperBodyLabels() {
+            if (!model) return;
+
+            // 上半身肌肉标签 - 均匀分布在上下左右四周
+            const labels = [
+                // 颈部/肩部
+                { text: '斜方肌', en: 'Trapezius', pos: [0, 0.9, 0.1], color: '#00ffff', size: 0.65 },
+                // 三角肌 - 左右两侧
+                { text: '三角肌', en: 'Deltoid', pos: [-0.6, 0.6, 0.1], color: '#00d4ff', size: 0.6 },
+                { text: '三角肌', en: 'Deltoid', pos: [0.6, 0.6, 0.1], color: '#00d4ff', size: 0.6 },
+                // 胸肌
+                { text: '胸大肌', en: 'Pectoralis Major', pos: [0, 0.5, 0.3], color: '#00aaff', size: 0.7 },
+                // 背阔肌 - 两侧
+                { text: '背阔肌', en: 'Latissimus Dorsi', pos: [-0.5, 0.35, -0.15], color: '#88ccff', size: 0.6 },
+                { text: '背阔肌', en: 'Latissimus Dorsi', pos: [0.5, 0.35, -0.15], color: '#88ccff', size: 0.6 },
+                // 肱二头肌 - 手臂前侧
+                { text: '肱二头肌', en: 'Biceps', pos: [-0.7, 0.15, 0.2], color: '#66bbff', size: 0.6 },
+                { text: '肱二头肌', en: 'Biceps', pos: [0.7, 0.15, 0.2], color: '#66bbff', size: 0.6 },
+                // 肱三头肌 - 手臂后侧
+                { text: '肱三头肌', en: 'Triceps', pos: [-0.7, 0.1, -0.15], color: '#5599ff', size: 0.55 },
+                { text: '肱三头肌', en: 'Triceps', pos: [0.7, 0.1, -0.15], color: '#5599ff', size: 0.55 },
+                // 腹肌
+                { text: '腹直肌', en: 'Rectus Abdominis', pos: [0, 0.1, 0.3], color: '#44aaff', size: 0.65 },
+                // 竖脊肌 - 后背
+                { text: '竖脊肌', en: 'Erector Spinae', pos: [0, 0.2, -0.2], color: '#3388dd', size: 0.55 }
+            ];
+
+            const linesData = [];
+
+            labels.forEach((label, index) => {
+                // 文字位置（稍微向外偏移，不接触模型）
+                const textPos = new THREE.Vector3(
+                    label.pos[0] * 1.8,
+                    label.pos[1],
+                    label.pos[2] * 1.8 + 0.4
+                );
+
+                // 创建中文文字
+                const sprite = createTextSprite(label.text, label.color, label.size || 0.6);
+                sprite.position.copy(textPos);
+                sprite.userData.textPos = textPos.clone();
+                sprite.userData.anchorLocalPos = new THREE.Vector3(label.pos[0], label.pos[1], label.pos[2]);
+                sprite.userData.phase = index * 0.3;
+                sprite.userData.baseOpacity = 0.85;
+                sprite.name = 'holoLabel';
+
+                scene.add(sprite);
+
+                // 创建英文文字（在中文下方）
+                const enSprite = createTextSprite(label.en, label.color, (label.size || 0.6) * 0.65);
+                enSprite.position.copy(textPos);
+                enSprite.position.y -= 0.12;
+                enSprite.userData.textPos = enSprite.position.clone();
+                enSprite.userData.anchorLocalPos = new THREE.Vector3(label.pos[0], label.pos[1] - 0.1, label.pos[2]);
+                enSprite.userData.phase = index * 0.3 + 0.5;
+                enSprite.userData.baseOpacity = 0.6;
+                enSprite.name = 'holoLabel';
+
+                scene.add(enSprite);
+
+                // 创建连接线
+                const lineGeometry = new THREE.BufferGeometry();
+                const linePositions = new Float32Array(6);
+                lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+
+                const lineMaterial = new THREE.LineBasicMaterial({
+                    color: label.color,
+                    transparent: true,
+                    opacity: 0.4
+                });
+
+                const line = new THREE.Line(lineGeometry, lineMaterial);
+                line.userData.anchorLocalPos = new THREE.Vector3(label.pos[0], label.pos[1], label.pos[2]);
+                line.userData.textPos = textPos.clone();
+                line.userData.color = label.color;
+                line.name = 'holoLine';
+
+                scene.add(line);
+                linesData.push(line);
+            });
+
+            window.holoLinesData = linesData;
+        }
+
+        function toggleHolo() {
+            isHoloMode = !isHoloMode;
+            document.getElementById('holo-btn').textContent = isHoloMode ? '🔲 普通模式' : '💠 全息模式';
+
+            if (model) {
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (isHoloMode) {
+                            child.material = new THREE.MeshPhysicalMaterial({
+                                color: 0x00aaff,
+                                emissive: 0x004466,
+                                emissiveIntensity: 0.5,
+                                metalness: 0.1,
+                                roughness: 0.2,
+                                transparent: true,
+                                opacity: 0.35,
+                                transmission: 0.3,
+                                thickness: 0.5
+                            });
+                        } else {
+                            const original = originalMaterials.find(m => m.mesh === child);
+                            if (original) {
+                                child.material = original.material.clone();
+                                child.material.emissiveIntensity = 0.3;
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+
+            // 星空旋转
+            if (starField) {
+                starField.rotation.y += 0.00005;
+                starField.rotation.x += 0.00001;
+            }
+
+            // 粒子移动
+            if (holoParticles) {
+                const positions = holoParticles.geometry.attributes.position.array;
+                const velocities = holoParticles.geometry.userData.velocities;
+                const phases = holoParticles.geometry.userData.phases;
+
+                const speed = isInteracting ? 5 : 1;
+
+                for (let i = 0; i < positions.length / 3; i++) {
+                    positions[i * 3] += velocities[i * 3] * speed;
+                    positions[i * 3 + 1] += velocities[i * 3 + 1] * speed;
+                    positions[i * 3 + 2] += velocities[i * 3 + 2] * speed;
+
+                    const phase = phases[i] + time * 0.5;
+                    positions[i * 3] += Math.sin(phase) * 0.0005;
+                    positions[i * 3 + 1] += Math.cos(phase * 0.7) * 0.0003;
+
+                    const maxDist = 1;
+                    if (Math.abs(positions[i * 3]) > maxDist) velocities[i * 3] *= -1;
+                    if (Math.abs(positions[i * 3 + 1]) > maxDist + 0.5) velocities[i * 3 + 1] *= -1;
+                    if (Math.abs(positions[i * 3 + 2]) > maxDist) velocities[i * 3 + 2] *= -1;
+                }
+
+                holoParticles.geometry.attributes.position.needsUpdate = true;
+                holoParticles.material.opacity = 0.3 + Math.sin(time * 2) * 0.15;
+            }
+
+            // 边缘发光脉冲
+            scene.traverse((child) => {
+                if (child.isLineSegments && child.material && child.userData.pulsePhase !== undefined) {
+                    child.material.opacity = 0.2 + Math.sin(time * 2 + child.userData.pulsePhase) * 0.1;
+                }
+            });
+
+            // 全息文字效果
+            scene.traverse((child) => {
+                if (child.isSprite && child.name === 'holoLabel') {
+                    child.lookAt(camera.position);
+
+                    if (child.userData.textPos) {
+                        const floatY = Math.sin(time * 0.5 + child.userData.phase) * 0.015;
+                        child.position.y = child.userData.textPos.y + floatY;
+
+                        const baseOpacity = child.userData.baseOpacity || 0.8;
+                        child.material.opacity = baseOpacity + Math.sin(time * 2 + child.userData.phase) * 0.15;
+                    }
+                }
+            });
+
+            // 更新线条
+            if (model && window.holoLinesData) {
+                window.holoLinesData.forEach((line) => {
+                    if (line.userData.anchorLocalPos && line.userData.textPos) {
+                        const startLocal = line.userData.anchorLocalPos.clone();
+                        const startWorld = model.localToWorld(startLocal.clone());
+
+                        const endWorld = line.userData.textPos.clone();
+                        endWorld.y += Math.sin(time * 0.5 + (line.userData.anchorLocalPos.x * 10)) * 0.015;
+
+                        const positions = line.geometry.attributes.position.array;
+                        positions[0] = startWorld.x;
+                        positions[1] = startWorld.y;
+                        positions[2] = startWorld.z;
+                        positions[3] = endWorld.x;
+                        positions[4] = endWorld.y;
+                        positions[5] = endWorld.z;
+                        line.geometry.attributes.position.needsUpdate = true;
+
+                        line.material.opacity = 0.3 + Math.sin(time * 2 + line.userData.anchorLocalPos.x * 10) * 0.15;
+                    }
+                });
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
